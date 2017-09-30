@@ -1,0 +1,25 @@
+{
+	"name": "Contracts_Blockchain",
+	"version": "0.0.1",
+	"description": "A Node.js web application that demonstrates utilizing IBM Blockchain JS to call REST APIs on the blockchain.",
+	"main": "app.js",
+	"scripts": {
+		"start": "node app.js"
+	},
+	"dependencies": {
+		"body-parser": "1.0.2",
+		"compression": "1.4.4",
+		"cors": "2.5.3",
+		"debug": "0.7.4",
+		"express": "4.0.0",
+		"express-session": "1.2.1",
+		"ibm-blockchain-js": "1.3.*",
+		"extend":"*",
+		"morgan": "1.1.1",
+		"ibm-graph-client":"*",
+		"md5":"*"
+	},
+	"engines": {
+		"node": "0.12.0"
+	}
+}
