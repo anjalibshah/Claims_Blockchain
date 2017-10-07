@@ -14,17 +14,16 @@ import (
 type SimpleChaincode struct {
 }
 
-var contractIndexStr = "_contractindex"				//name for the key/value that will store a list of all known contracts
+var claimIndexStr = "_claimindex"				//name for the key/value that will store a list of all known claims
 
-type Contract struct{
-	Name string `json:"name"`					
-	StartDate string `json:"startdate"`
-	EndDate string `json:"enddate"`
-	Location string `json:"location"`
-	Text string `json:"text"`
-	Company1 string `json:"company1"`
-	Company2 string `json:"company2"`
-	Title string `json:"title"`
+type Claim struct{
+	Dcn string `json:"dcn"`					
+	ClaimNumber string `json:"claimnumber"`
+	Diagnosis string `json:"diagnosis"`
+	Provider string `json:"provider"`
+	ProviderText string `json:"providertext"`
+	ClaimText string `json:"claimanttext"`
+	Rtn2Work string `json:"rtn2work"`
 }
 
 
@@ -65,7 +64,7 @@ func (t *SimpleChaincode) Init(stub shim.ChaincodeStubInterface, function string
 	
 	var empty []string
 	jsonAsBytes, _ := json.Marshal(empty)								//marshal an emtpy array of strings to clear the index
-	err = stub.PutState(contractIndexStr, jsonAsBytes)
+	err = stub.PutState(claimIndexStr, jsonAsBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -95,9 +94,9 @@ func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface, function stri
 		return res, err
 	} else if function == "write" {											//writes a value to the chaincode state
 		return t.Write(stub, args)
-	} else if function == "init_contract" {									//create a new contract
-		return t.init_contract(stub, args)
-	} else if function == "set_user" {										//change owner of a contract
+	} else if function == "init_claim" {									//create a new claim
+		return t.init_claim(stub, args)
+	} else if function == "set_user" {										//change owner of a claim
 		res, err := t.set_user(stub, args)													//lets make sure all open trades are still valid
 		return res, err
 	} 
@@ -156,28 +155,28 @@ func (t *SimpleChaincode) Delete(stub shim.ChaincodeStubInterface, args []string
 		return nil, errors.New("Failed to delete state")
 	}
 
-	//get the contract index
-	contractsAsBytes, err := stub.GetState(contractIndexStr)
+	//get the claim index
+	claimsAsBytes, err := stub.GetState(claimIndexStr)
 	if err != nil {
-		return nil, errors.New("Failed to get contract index")
+		return nil, errors.New("Failed to get claim index")
 	}
-	var contractIndex []string
-	json.Unmarshal(contractsAsBytes, &contractIndex)								//un stringify it aka JSON.parse()
+	var claimIndex []string
+	json.Unmarshal(claimsAsBytes, &claimIndex)								//un stringify it aka JSON.parse()
 	
-	//remove contract from index
-	for i,val := range contractIndex{
+	//remove claim from index
+	for i,val := range claimIndex{
 		fmt.Println(strconv.Itoa(i) + " - looking at " + val + " for " + name)
-		if val == name{															//find the correct contract
-			fmt.Println("found contract")
-			contractIndex = append(contractIndex[:i], contractIndex[i+1:]...)			//remove it
-			for x:= range contractIndex{											//debug prints...
-				fmt.Println(string(x) + " - " + contractIndex[x])
+		if val == name{															//find the correct claim
+			fmt.Println("found claim")
+			claimIndex = append(claimIndex[:i], claimIndex[i+1:]...)			//remove it
+			for x:= range claimIndex{											//debug prints...
+				fmt.Println(string(x) + " - " + claimIndex[x])
 			}
 			break
 		}
 	}
-	jsonAsBytes, _ := json.Marshal(contractIndex)									//save new index
-	err = stub.PutState(contractIndexStr, jsonAsBytes)
+	jsonAsBytes, _ := json.Marshal(claimIndex)									//save new index
+	err = stub.PutState(claimIndexStr, jsonAsBytes)
 	return nil, nil
 }
 
@@ -203,64 +202,63 @@ func (t *SimpleChaincode) Write(stub shim.ChaincodeStubInterface, args []string)
 }
 
 // ============================================================================================================================
-// Init Contract - create a new contract, store into chaincode state
+// Init Claim - create a new claim, store into chaincode state
 // ============================================================================================================================
-func (t *SimpleChaincode) init_contract(stub shim.ChaincodeStubInterface, args []string) ([]byte, error) {
+func (t *SimpleChaincode) init_claim(stub shim.ChaincodeStubInterface, args []string) ([]byte, error) {
 	var err error
 	
 	if len(args) != 8 {
 		return nil, errors.New("Incorrect number of arguments. Expecting 8")
 	}
-	fmt.Println("- start init contract")
-	name := args[0]
-	startdate := args[1]
-	enddate := args[2]
-	location := args[3]
-	text := args[4]
-	company1 := args[5]
-	company2 := args[6]
-	title := args[7]
-
-	//check if contract already exists
-	contractAsBytes, err := stub.GetState(name)
+	fmt.Println("- start init claim")
+	dcn := args[0]
+	claimnumber := args[1]
+	diagnosis := args[2]
+	provider := args[3]
+	providertext := args[4]
+	claimanttext := args[5]
+	rtn2work := args[6]
+	
+	//check if claim already exists
+	claimAsBytes, err := stub.GetState(name)
 	if err != nil {
-		return nil, errors.New("Failed to get contract name")
+		return nil, errors.New("Failed to get claim name")
 	}
-	res := Contract{}
-	json.Unmarshal(contractAsBytes, &res)
-	if res.Name == name{
-		fmt.Println("This contract arleady exists: " + name)
+	res := Claim{}
+	json.Unmarshal(claimAsBytes, &res)
+	if res.Dcn == dcn{
+		fmt.Println("This claim arleady exists: " + dcn)
 		fmt.Println(res);
-		return nil, errors.New("This contract arleady exists")				//all stop a contract by this name exists
+		return nil, errors.New("This claim arleady exists")				//all stop a claim by this number exists
 	}
 	
-	//build the contract json string manually
-	str := `{"name": "` + name + `","title": "` + title + `", "startdate": "` + startdate + `", "enddate": "` + enddate + `", "location": "` + location + `", "text": "` + text + `", "company1": "` + company1 + `", "company2": "` + company2 + `"}`
-	err = stub.PutState(name, []byte(str))									//store contract with id as key
+	//build the claim json string manually
+	str := `{"dcn": "` + dcn + `", "claimnumber": "` + claimnumber + `", "diagnosis": "` + diagnosis + `", "provider": "` + provider + `", "providertext": "` + providertext + `", "claimanttext": "` + claimanttext + `", "rtn2work": "` + rtn2work + `"}`
+	err = stub.PutState(dcn, []byte(str))									//store claim with id as key
 	if err != nil {
 		return nil, err
 	}
 		
-	//get the contract index
-	contractsAsBytes, err := stub.GetState(contractIndexStr)
+	//get the claim index
+	claimsAsBytes, err := stub.GetState(claimIndexStr)
 	if err != nil {
-		return nil, errors.New("Failed to get contract index")
+		return nil, errors.New("Failed to get claim index")
 	}
-	var contractIndex []string
-	json.Unmarshal(contractsAsBytes, &contractIndex)							//un stringify it aka JSON.parse()
+	var claimIndex []string
+	json.Unmarshal(claimsAsBytes, &claimIndex)							//un stringify it aka JSON.parse()
 	
 	//append
-	contractIndex = append(contractIndex, name)									//add contract name to index list
-	fmt.Println("! contract index: ", contractIndex)
-	jsonAsBytes, _ := json.Marshal(contractIndex)
-	err = stub.PutState(contractIndexStr, jsonAsBytes)						//store name of contract
+	claimIndex = append(claimIndex, name)									//add claim name to index list
+	fmt.Println("! Claim index: ", claimIndex)
+	jsonAsBytes, _ := json.Marshal(claimIndex)
+	err = stub.PutState(claimIndexStr, jsonAsBytes)						//store name of claim
 
-	fmt.Println("- end init contract")
+	fmt.Println("- end init claim")
 	return nil, nil
 }
 
 // ============================================================================================================================
-// Set User Permission on Contract
+// Set User Permission on Claim
 // ============================================================================================================================
 func (t *SimpleChaincode) set_user(stub shim.ChaincodeStubInterface, args []string) ([]byte, error) {
 	var err error
@@ -269,18 +267,18 @@ func (t *SimpleChaincode) set_user(stub shim.ChaincodeStubInterface, args []stri
 		return nil, errors.New("Incorrect number of arguments. Expecting 2")
 	}
 	
-	fmt.Println("- start set user")
+	fmt.Println("- start set dcn")
 	fmt.Println(args[0] + " - " + args[1])
-	contractAsBytes, err := stub.GetState(args[0])
+	claimAsBytes, err := stub.GetState(args[0])
 	if err != nil {
 		return nil, errors.New("Failed to get thing")
 	}
-	res := Contract{}
-	json.Unmarshal(contractAsBytes, &res)										//un stringify it aka JSON.parse()
-	res.Company1 = args[1]														//change the user
+	res := Claim{}
+	json.Unmarshal(claimAsBytes, &res)										//un stringify it aka JSON.parse()
+	res.ClaimNumber = args[1]														//change the user
 	
 	jsonAsBytes, _ := json.Marshal(res)
-	err = stub.PutState(args[0], jsonAsBytes)								//rewrite the contract with id as key
+	err = stub.PutState(args[0], jsonAsBytes)								//rewrite the claim with id as key
 	if err != nil {
 		return nil, err
 	}
