@@ -29,7 +29,7 @@ var GDScreds = null;
 var md5 = require('md5');
 
 //Set your graph database title here
-var graph = "graphdbcontracts";
+var graph = "graphdbclaims";
 
 app.use(compression());
 app.use(morgan('dev'));
@@ -103,9 +103,9 @@ var options = {
         }
     },
     chaincode: {
-        zip_url: 'https://github.com/garrettrowe/Contracts_Blockchain/archive/master.zip',
-        unzip_dir: 'Contracts_Blockchain-master/chaincode',
-        git_url: 'https://github.com/garrettrowe/Contracts_Blockchain/chaincode'
+        zip_url: 'https://github.com/anjalibshah/Claims_Blockchain/archive/master.zip',
+        unzip_dir: 'Claims_Blockchain-master/chaincode',
+        git_url: 'https://github.com/anjalibshah/Claims_Blockchain/chaincode'
     }
 };
 
@@ -145,14 +145,14 @@ function check_if_deployed(e, attempt) {
         cb_deployed(msg);
     } else {
         console.log('[preflight check]', attempt, ': testing if chaincode is ready');
-        chaincode.query.read(['_contractindex'], function(err, resp) {
+        chaincode.query.read(['_claimindex'], function(err, resp) {
             var cc_deployed = false;
             try {
                 if (err == null) { //no errors is good, but can't trust that alone
-                    if (resp === 'null') cc_deployed = true; //looks alright, brand new, no contracts yet
+                    if (resp === 'null') cc_deployed = true; //looks alright, brand new, no claims yet
                     else {
                         var json = JSON.parse(resp);
-                        if (json.constructor === Array) cc_deployed = true; //looks alright, we have contracts
+                        if (json.constructor === Array) cc_deployed = true; //looks alright, we have claims
                     }
                 }
             } catch (e) {} //anything nasty goes here
@@ -216,30 +216,29 @@ router.route('/').all(function(req, res) {
 });
 
 router.route('/create').post(function(req, res) {
-    chaincode.invoke.init_contract([req.body.name, req.body.startdate, req.body.enddate, req.body.location, req.body.text, req.body.company1, req.body.company2, req.body.title], retCall);
+    chaincode.invoke.init_claim([req.body.dcn, req.body.claimnumber, req.body.diagnosis, req.body.provider, req.body.providertext, req.body.claimanttext, 
+        req.body.rtn2work], retCall);
 	
     function retCall(e, a) {
         console.log('Blockchain created entry: ', e, a);
     }
     var gremlinq = {
         gremlin: "\
-	def contractV = graph.addVertex(T.label, 'contract', 'name', contractName, 'hash', hash, 'title', title);\
-	def company1V =  graph.traversal().V().has('company',company1);\
-	company1V =  company1V.hasNext() ? company1V.next() : graph.addVertex(T.label, 'company', 'company', company1);\
-	def company2V =  graph.traversal().V().has('company',company2);\
-	company2V =  company2V.hasNext() ? company2V.next() : graph.addVertex(T.label, 'company', 'company', company2);\
-	def locationV =  graph.traversal().V().has('location',location);\
-	locationV =  locationV.hasNext() ? locationV.next() : graph.addVertex(T.label, 'location', 'location', location);\
-	contractV.addEdge('companies', company1V);\
-	contractV.addEdge('companies', company2V);\
-	contractV.addEdge('locations', locationV);",
+	def claimV = graph.addVertex(T.label, 'claim', 'dcn', dcn, 'hash', hash, 'claimnumber', claimnumber);\
+	def providerV =  graph.traversal().V().has('provider',provider);\
+	providerV =  providerV.hasNext() ? providerV.next() : graph.addVertex(T.label, 'provider', 'provider', provider);\
+	def diagnosisV =  graph.traversal().V().has('diagnosis',diagnosis);\
+	diagnosisV =  diagnosisV.hasNext() ? diagnosisV.next() : graph.addVertex(T.label, 'diagnosis', 'diagnosis', diagnosis);\
+	claimV.addEdge('provider', providerV);\
+	claimV.addEdge('diagnosis', diagnosisV);",
         "bindings": {
-            "company1": req.body.company1,
-            "company2": req.body.company2,
-            "contractName": req.body.name,
-            "hash": md5(req.body.text),
-            "title": req.body.title,
-            "location": req.body.location
+            "provider": req.body.provider,
+            "diagnosis": req.body.diagnosis,
+            "dcn": req.body.dcn,
+            "claimnumber": req.body.claimnumber,
+            "claimanttext": req.body.claimanttext,
+            "rtn2work": req.body.rtn2work,
+            "hash": md5(req.body.providertext)
         }
     }
     graphD.gremlin(gremlinq, function(err, data) {
@@ -254,7 +253,7 @@ router.route('/create').post(function(req, res) {
 });
 
 router.route('/index').post(function(req, res) {
-    chaincode.query.read(['_contractindex'], function(e, a) {
+    chaincode.query.read(['_claimindex'], function(e, a) {
         console.log('Index returns: ', e, a);
         res.json(a);
     });
@@ -263,7 +262,7 @@ router.route('/index').post(function(req, res) {
 router.route('/delete').post(function(req, res) {
 var gremlinq = {
         gremlin: "\
-	graph.traversal().V().has('contract','" + req.body.name + "').drop();\
+	graph.traversal().V().has('claim','" + req.body.claimnumber + "').drop();\
 	graph.tx().commit();",
         "bindings": {}
     }
@@ -274,7 +273,7 @@ var gremlinq = {
         console.log(JSON.stringify(data));
     });
     try{
-	    chaincode.invoke.delete([req.body.name], function(e, a) {
+	    chaincode.invoke.delete([req.body.claimnumber], function(e, a) {
 		console.log('Blockchain returns: ', e, a);
 		res.json(a);
 	    });
@@ -299,12 +298,12 @@ router.route('/query').post(function(req, res) {
         }
         console.log(JSON.stringify(odata));
         var resnum = 0;
-        var contract = null;
+        var claim = null;
         for (var i = 0, len = odata.result.data.length; i < len; i++) {
-            contract = odata.result.data[i].properties.name[0].value;
-            console.log('Contract found in Graph: ' + contract);
+            claim = odata.result.data[i].properties.name[0].value;
+            console.log('Claim found in Graph: ' + claim);
 	    try{
-		    chaincode.query.read([contract], function(e, a) {
+		    chaincode.query.read([claim], function(e, a) {
 			console.log('Blockchain returns: ', e, a);
 			res.write(a);
 			resnum++;
@@ -326,32 +325,32 @@ router.route('/query').post(function(req, res) {
 router.get('/graphinit', function(req, res) {
     var schema = {
         "propertyKeys": [{
-                "name": "name",
+                "name": "dcn",
                 "dataType": "String",
                 "cardinality": "SINGLE"
             },
             {
-                "name": "location",
+                "name": "claimnumber",
                 "dataType": "String",
                 "cardinality": "SINGLE"
             },
             {
-                "name": "title",
+                "name": "diagnosis",
                 "dataType": "String",
                 "cardinality": "SINGLE"
             },
             {
-                "name": "company",
+                "name": "provider",
                 "dataType": "String",
                 "cardinality": "SINGLE"
             },
             {
-                "name": "enddate",
+                "name": "claimanttext",
                 "dataType": "String",
                 "cardinality": "SINGLE"
             },
             {
-                "name": "startdate",
+                "name": "rtn2work",
                 "dataType": "String",
                 "cardinality": "SINGLE"
             },
@@ -362,52 +361,52 @@ router.get('/graphinit', function(req, res) {
             }
         ],
         "vertexLabels": [{
-                "name": "company"
+                "name": "provider"
             },
             {
-                "name": "contract"
+                "name": "claim"
             },
             {
-                "name": "location"
+                "name": "diagnosis"
             }
         ],
         "edgeLabels": [{
-                "name": "companies",
+                "name": "providers",
                 "multiplicity": "MULTI"
             },
             {
-                "name": "locations",
+                "name": "diagnoses",
                 "multiplicity": "MULTI"
             }
         ],
         "vertexIndexes": [{
-                "name": "vByTitle",
-                "propertyKeys": ["title"],
+                "name": "vByDiagnosis",
+                "propertyKeys": ["diagnosis"],
                 "composite": true,
                 "unique": false
             },
             {
-                "name": "vByLocation",
-                "propertyKeys": ["location"],
+                "name": "vByProvider",
+                "propertyKeys": ["provider"],
                 "composite": true,
                 "unique": false
             },
             {
-                "name": "vByCompany",
-                "propertyKeys": ["company"],
+                "name": "vByRtn2work",
+                "propertyKeys": ["rtn2work"],
                 "composite": true,
                 "unique": false
             }
         ],
         "edgeIndexes": [{
-                "name": "eByCompanies",
-                "propertyKeys": ["company"],
+                "name": "eByProviders",
+                "propertyKeys": ["provider"],
                 "composite": true,
                 "unique": false
             },
             {
-                "name": "eByLocations",
-                "propertyKeys": ["location"],
+                "name": "eByDiagnoses",
+                "propertyKeys": ["diagnosis"],
                 "composite": true,
                 "unique": false
             }
