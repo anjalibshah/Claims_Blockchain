@@ -207,8 +207,8 @@ func (t *SimpleChaincode) Write(stub shim.ChaincodeStubInterface, args []string)
 func (t *SimpleChaincode) init_claim(stub shim.ChaincodeStubInterface, args []string) ([]byte, error) {
 	var err error
 	
-	if len(args) != 8 {
-		return nil, errors.New("Incorrect number of arguments. Expecting 8")
+	if len(args) != 7 {
+		return nil, errors.New("Incorrect number of arguments. Expecting 7")
 	}
 	fmt.Println("- start init claim")
 	dcn := args[0]
@@ -220,9 +220,9 @@ func (t *SimpleChaincode) init_claim(stub shim.ChaincodeStubInterface, args []st
 	rtn2work := args[6]
 	
 	//check if claim already exists
-	claimAsBytes, err := stub.GetState(name)
+	claimAsBytes, err := stub.GetState(dcn)
 	if err != nil {
-		return nil, errors.New("Failed to get claim name")
+		return nil, errors.New("Failed to get claim dcn")
 	}
 	res := Claim{}
 	json.Unmarshal(claimAsBytes, &res)
@@ -248,10 +248,10 @@ func (t *SimpleChaincode) init_claim(stub shim.ChaincodeStubInterface, args []st
 	json.Unmarshal(claimsAsBytes, &claimIndex)							//un stringify it aka JSON.parse()
 	
 	//append
-	claimIndex = append(claimIndex, name)									//add claim name to index list
+	claimIndex = append(claimIndex, dcn)									//add claim dcn to index list
 	fmt.Println("! Claim index: ", claimIndex)
 	jsonAsBytes, _ := json.Marshal(claimIndex)
-	err = stub.PutState(claimIndexStr, jsonAsBytes)						//store name of claim
+	err = stub.PutState(claimIndexStr, jsonAsBytes)						//store dcn of claim
 
 	fmt.Println("- end init claim")
 	return nil, nil
